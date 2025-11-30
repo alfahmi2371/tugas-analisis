@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from io import BytesIO
 from openpyxl import Workbook
-from openpyxl.drawing.image import Image
 
 # ============= LOAD DATA =============
 df = pd.read_csv("hotel_bookings_cleaned.csv")
@@ -43,7 +42,7 @@ df_filtered = df[
 ]
 
 # ============= HEADER + LOGO =============
-st.image("logo.png", width=180)
+st.image("logo.png", width=190)
 st.title("🏨 Dashboard Hotel Booking Demand")
 st.write("Dashboard interaktif analisis pemesanan hotel menggunakan Streamlit.")
 st.markdown("---")
@@ -56,10 +55,11 @@ st.markdown("---")
 # ============= STATISTIK DESKRIPTIF =============
 st.subheader("📊 Statistik Data (Mean – Median – Modus – Std Dev)")
 
-if df_filtered.empty:
-    st.warning("⚠ Data kosong karena filter. Silakan ubah filter.")
+numeric_df = df_filtered.select_dtypes(include=['int64', 'float64', 'number'])
+
+if numeric_df.empty:
+    st.warning("⚠ Tidak ada kolom numerik untuk dihitung statistik.")
 else:
-    numeric_df = df_filtered.select_dtypes(include=['number'])
     stats = pd.DataFrame({
         "Mean": numeric_df.mean(),
         "Median": numeric_df.median(),
@@ -75,38 +75,63 @@ else:
 st.markdown("---")
 
 # ============= VISUALISASI DATA =============
+
+# 1. Bar chart
 st.subheader("📊 Bar Chart — Jumlah Booking per Hotel")
 bar_data = df_filtered['hotel'].value_counts().reset_index()
 bar_data.columns = ['hotel_type', 'count']
 bar_fig = px.bar(bar_data, x='hotel_type', y='count', color='hotel_type')
 st.plotly_chart(bar_fig)
 
+# 2. Line chart
 st.subheader("📈 Line Chart — Tren Booking per Bulan")
 monthly_booking = df_filtered.groupby("arrival_date_month").size().reindex(month_order)
 line_fig = px.line(x=month_order, y=monthly_booking.values, markers=True)
 st.plotly_chart(line_fig)
 
+# 3. Pie chart
 st.subheader("🥧 Pie Chart — Customer Type")
 pie_fig = px.pie(df_filtered, names='customer_type')
 st.plotly_chart(pie_fig)
 
+# 4. Scatter plot
 st.subheader("📍 Scatter Plot — Lead Time vs ADR")
 scatter_fig = px.scatter(df_filtered, x='lead_time', y='adr', color='hotel')
 st.plotly_chart(scatter_fig)
 
+# 5. Heatmap
 st.subheader("🔥 Heatmap — Korelasi Variabel Numerik")
 plt.figure(figsize=(8,5))
 sns.heatmap(df_filtered.select_dtypes(include="number").corr(), annot=True, cmap="coolwarm")
+plt.tight_layout()
 st.pyplot(plt)
-plt.close()
 
 st.markdown("---")
 
-# ============= DOWNLOAD DATA =============
+# ============= EXPORT EXCEL =============
+st.subheader("⬇ Download Semua Data sebagai Excel")
+
+def export_to_excel():
+    wb = Workbook()
+    ws1 = wb.active
+    ws1.title = "Filtered Data"
+
+    for i, col in enumerate(df_filtered.columns, 1):
+        ws1.cell(row=1, column=i).value = col
+    for r, row in enumerate(df_filtered.values, 2):
+        for c, v in enumerate(row, 1):
+            ws1.cell(row=r, column=c).value = v
+
+    output = BytesIO()
+    wb.save(output)
+    return output.getvalue()
+
+excel_file = export_to_excel()
+
 st.download_button(
-    label="📥 Download Filtered Data sebagai Excel",
-    data=df_filtered.to_excel("filtered_data.xlsx", index=False),
-    file_name="filtered_data.xlsx",
+    label="📥 Download Data",
+    data=excel_file,
+    file_name="dashboard_export.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
